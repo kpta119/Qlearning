@@ -17,7 +17,7 @@ MAP = [ state for state in MAP if state in ['S', 'F', 'H', 'G']]
 
 class FrozenAgent:
     def __init__(self,
-                learning_rate :float = 0.5,
+                learning_rate :float = 0.1,
                 discount_factor :float = 0.95,
                 exploration_epsilon :float = 1.0):
         self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=False)
@@ -45,19 +45,30 @@ class FrozenAgent:
         self.exploration_epsilon = max(0.1, self.exploration_epsilon*0.995)
 
 
-def reward_default(next_state):
+def reward_default(state, next_state):
     if next_state == 63:
         return 1
     else:
         return 0
 
 
-def reward_hole_minus(next_state):
+def reward_hole_minus(state, next_state):
     reward = 0
     if MAP[next_state] == 'H':
         reward = -1
     elif MAP[next_state] == 'G':
         reward = 100
+    return reward
+
+
+def minus_for_walking_into_walls_and_holes(state, next_state):
+    reward = 0
+    if MAP[next_state] == 'H':
+        reward = -1
+    elif MAP[next_state] == 'G':
+        reward = 1
+    if state == next_state:
+        reward -= 2
     return reward
 
 
@@ -71,7 +82,7 @@ def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=rew
             action = agent.choose_action(state)
             next_state, reward, done, _, _ = agent.env.step(action)
 
-            reward = rewarding(next_state)
+            reward = rewarding(state, next_state)
             agent.update_qtable(state, action, reward, next_state)
             state = next_state
 
@@ -97,9 +108,8 @@ def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25,
 
 def main():
     averaged_reward_base = count_averaged_reward()
-    averaged_reward = count_averaged_reward(rewarding=reward_hole_minus)
+    averaged_reward = count_averaged_reward()
 
-    print(averaged_reward_base)
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
     ax.spines['left'].set_position('center')
