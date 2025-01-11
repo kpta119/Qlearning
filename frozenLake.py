@@ -16,21 +16,22 @@ MAP = [ state for state in MAP if state in ['S', 'F', 'H', 'G']]
 
 
 class FrozenAgent:
-    def __init__(self, state_size: int,
-                action_size: int,
+    def __init__(self,
                 learning_rate :float = 0.1,
                 discount_factor :float = 0.95,
                 exploration_epsilon :float = 1.0):
-        self.state_size = state_size
-        self.action_size = action_size
+        self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=False)
+        self.state_size = self.env.observation_space.n
+        self.action_size = self.env.action_space.n
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.exploration_epsilon = exploration_epsilon
-        self.qtable = np.zeros((state_size, action_size))
+        self.qtable = np.zeros((self.state_size, self.action_size))
 
     def choose_action(self, state: int) -> int:
-        if random.uniform(0,1) < self.exploration_epsilon: # z prawdopodobieństwem epsilon wybieramy akcje losową
-            return np.random.randint(self.action_size)
+        if (random.uniform(0,1) < self.exploration_epsilon
+            or np.max(self.qtable[state, :]) == 0): # z prawdopodobieństwem epsilon wybieramy akcje losową
+            return self.env.action_space.sample()
         return np.argmax(self.qtable[state, :])
 
     def update_qtable(self, state: int, action: int, reward: float, next_state: int) -> None:
@@ -38,8 +39,9 @@ class FrozenAgent:
         delta = reward + self.discount_factor * best_next_action - self.qtable[state, action]
         self.qtable[state, action] += self.learning_rate * delta
 
-    def update_epsilon(self) -> None:
-        self.exploration_epsilon = max(0.01, self.exploration_epsilon * 0.99)
+    def update_epsilon(self, episode :int) -> None:
+        self.exploration_epsilon = max(0.1, self.exploration_epsilon - 0.005*episode)
+
 
 def reward_default(next_state):
     if next_state == 63:
@@ -57,47 +59,43 @@ def reward_hole_minus(next_state):
     return reward
 
 
-
-def Qlearing(env, agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=reward_default):
+def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=reward_default):
     rewards = np.zeros(num_episodes)
     e = 0
     while e < num_episodes:
-        state, _ = env.reset()
-        total_reward = 0
+        state, _ = agent.env.reset()
 
         for i in range(max_steps):
             action = agent.choose_action(state)
-            next_state, reward, done, _, _ = env.step(action)
+            next_state, reward, done, _, _ = agent.env.step(action)
 
             reward = rewarding(next_state)
             agent.update_qtable(state, action, reward, next_state)
-
-            total_reward += reward
             state = next_state
-            #env.render()
 
             if done:
                 break
 
-        rewards[e] += total_reward
-        agent.update_epsilon()
+        agent.update_epsilon(e)
+        rewards[e] += reward
         if (e % 50 == 0):
             print(f"{e} epizod")
         e += 1
     return rewards
 
 
-def count_averaged_reward(env, max_steps=200, num_episodes=1000,  num_of_ind_runs=15):
+def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25):
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
-        agent = FrozenAgent(env.observation_space.n, env.action_space.n)
-        averaged_reward += Qlearing(env, agent, max_steps, num_episodes, reward_hole_minus)
+        agent = FrozenAgent()
+        averaged_reward += Qlearing(agent, max_steps, num_episodes, reward_hole_minus)
     return averaged_reward / num_of_ind_runs
 
 
 def main():
-    env = gym.make('FrozenLake-v1', desc=None, map_name="8x8", is_slippery=False)
-    averaged_reward_base = count_averaged_reward(env)
+    averaged_reward_base = count_averaged_reward()
+    averaged_reward = count_averaged_reward()
+
     print(averaged_reward_base)
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -107,8 +105,9 @@ def main():
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
-    #plt.plot(averaged_reward_base, 'r')
-    #plt.show()
+    plt.plot(averaged_reward_base, 'r')
+    plt.plot(averaged_reward, 'b')
+    plt.show()
 
 if __name__ == "__main__":
     main()
