@@ -17,7 +17,7 @@ MAP = [ state for state in MAP if state in ['S', 'F', 'H', 'G']]
 
 class FrozenAgent:
     def __init__(self,
-                learning_rate :float = 0.1,
+                learning_rate :float = 0.5,
                 discount_factor :float = 0.95,
                 exploration_epsilon :float = 1.0):
         self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=False)
@@ -32,7 +32,9 @@ class FrozenAgent:
         if (random.uniform(0,1) < self.exploration_epsilon
             or np.max(self.qtable[state, :]) == 0):
             return self.env.action_space.sample()
-        return np.argmax(self.qtable[state, :])
+        max_value = np.max(self.qtable[state, :])
+        max_actions = [action for action in range(self.action_size) if self.qtable[state, action] == max_value]
+        return random.choice(max_actions)
 
     def update_qtable(self, state: int, action: int, reward: float, next_state: int) -> None:
         best_next_action = np.max(self.qtable[next_state, :])
@@ -53,14 +55,14 @@ def reward_default(next_state):
 def reward_hole_minus(next_state):
     reward = 0
     if MAP[next_state] == 'H':
-        reward = -2
+        reward = -1
     elif MAP[next_state] == 'G':
-        reward = 10
+        reward = 100
     return reward
 
 
 def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=reward_default):
-    rewards = np.zeros(num_episodes)
+    successes = np.zeros(num_episodes)
     e = 0
     while e < num_episodes:
         state, _ = agent.env.reset()
@@ -74,27 +76,28 @@ def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=rew
             state = next_state
 
             if done:
+                if state == 63:
+                    successes[e] += 1
                 break
 
         agent.update_epsilon()
-        rewards[e] += reward
         if (e % 50 == 0):
             print(f"{e} epizod")
         e += 1
-    return rewards
+    return successes
 
 
-def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25):
+def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25, rewarding=reward_default):
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
         agent = FrozenAgent()
-        averaged_reward += Qlearing(agent, max_steps, num_episodes, reward_default)
+        averaged_reward += Qlearing(agent, max_steps, num_episodes, rewarding)
     return averaged_reward / num_of_ind_runs
 
 
 def main():
     averaged_reward_base = count_averaged_reward()
-    averaged_reward = count_averaged_reward()
+    averaged_reward = count_averaged_reward(rewarding=reward_hole_minus)
 
     print(averaged_reward_base)
     fig = plt.figure()
