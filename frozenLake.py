@@ -30,7 +30,7 @@ class FrozenAgent:
 
     def choose_action(self, state: int) -> int:
         if (random.uniform(0,1) < self.exploration_epsilon
-            or np.max(self.qtable[state, :]) == 0): # z prawdopodobieństwem epsilon wybieramy akcje losową
+            or np.max(self.qtable[state, :]) == 0):
             return self.env.action_space.sample()
         return np.argmax(self.qtable[state, :])
 
@@ -39,8 +39,8 @@ class FrozenAgent:
         delta = reward + self.discount_factor * best_next_action - self.qtable[state, action]
         self.qtable[state, action] += self.learning_rate * delta
 
-    def update_epsilon(self, episode :int) -> None:
-        self.exploration_epsilon = max(0.1, self.exploration_epsilon - 0.005*episode)
+    def update_epsilon(self) -> None:
+        self.exploration_epsilon = max(0.1, self.exploration_epsilon*0.995)
 
 
 def reward_default(next_state):
@@ -76,7 +76,7 @@ def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=rew
             if done:
                 break
 
-        agent.update_epsilon(e)
+        agent.update_epsilon()
         rewards[e] += reward
         if (e % 50 == 0):
             print(f"{e} epizod")
@@ -88,7 +88,7 @@ def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25)
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
         agent = FrozenAgent()
-        averaged_reward += Qlearing(agent, max_steps, num_episodes, reward_hole_minus)
+        averaged_reward += Qlearing(agent, max_steps, num_episodes, reward_default)
     return averaged_reward / num_of_ind_runs
 
 
