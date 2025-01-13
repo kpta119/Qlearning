@@ -3,112 +3,93 @@ from matplotlib import pyplot as plt
 import numpy as np
 import random
 
-MAP = '''SFFFFFFF
-FFFFFFFF
-FFFHFFFF
-FFFFFHFF
-FFFHFFFF
-FHHFFFHF
-FHFFHFHF
-FFFHFFFG'''
-
-MAP = [ state for state in MAP if state in ['S', 'F', 'H', 'G']]
-
 
 class FrozenAgent:
     def __init__(self,
-                learning_rate :float = 0.1,
-                discount_factor :float = 0.95,
-                exploration_epsilon :float = 1.0):
-        self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=False)
+                learning_rate :float = 0.3,
+                discount_factor :float = 0.9,
+                epsilon :float = 1.0):
+        self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=True)
         self.state_size = self.env.observation_space.n
         self.action_size = self.env.action_space.n
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
-        self.exploration_epsilon = exploration_epsilon
+        self.epsilon = epsilon
         self.qtable = np.zeros((self.state_size, self.action_size))
 
     def choose_action(self, state: int) -> int:
-        if (random.uniform(0,1) < self.exploration_epsilon
-            or np.max(self.qtable[state, :]) == 0):
+        if np.random.uniform(0, 1) < self.epsilon:
             return self.env.action_space.sample()
         max_value = np.max(self.qtable[state, :])
         max_actions = [action for action in range(self.action_size) if self.qtable[state, action] == max_value]
         return random.choice(max_actions)
+
 
     def update_qtable(self, state: int, action: int, reward: float, next_state: int) -> None:
         best_next_action = np.max(self.qtable[next_state, :])
         delta = reward + self.discount_factor * best_next_action - self.qtable[state, action]
         self.qtable[state, action] += self.learning_rate * delta
 
-    def update_epsilon(self) -> None:
-        self.exploration_epsilon = max(0.1, self.exploration_epsilon*0.995)
+    def update_epsilon(self, episode) -> None:
+        self.epsilon = max(0.001, self.epsilon - 0.001 * episode)
+
+    def Qlearning(self, reward_function, rewards :np.array, num_of_episodes :int,num_of_steps :int) -> None:
+        for episode in range(num_of_episodes):
+            current_state, _ = self.env.reset()
+            for _ in range(num_of_steps):
+                action = self.choose_action(current_state)
+                next_state, reward, done, _ , _ = self.env.step(action)
+
+                reward = reward_function(current_state, next_state, reward, done)
+                self.update_qtable(current_state, action, reward, next_state)
+                current_state = next_state
+
+                if done:
+                    break
+
+            self.update_epsilon(episode)
+            if reward > 0:
+                rewards[episode] += 1
+            if (episode % 50 == 0):
+                print(f"episode number: {episode}")
+        return rewards
 
 
-def reward_default(state, next_state):
-    if next_state == 63:
-        return 1
-    else:
-        return 0
-
-
-def reward_hole_minus(state, next_state):
-    reward = 0
-    if MAP[next_state] == 'H':
-        reward = -1
-    elif MAP[next_state] == 'G':
-        reward = 100
+def reward_default(state, next_state, reward, done):
     return reward
 
 
-def minus_for_walking_into_walls_and_holes(state, next_state):
-    reward = 0
-    if MAP[next_state] == 'H':
-        reward = -1
-    elif MAP[next_state] == 'G':
-        reward = 1
-    if state == next_state:
-        reward -= 2
-    return reward
+def reward_hole_minus(state, next_state, reward, done):
+    if done and reward == 0:
+        return -1
+    elif done and reward == 1:
+        return 100
+    return 0
 
 
-def Qlearing(agent: FrozenAgent, max_steps=200, num_episodes=1000, rewarding=reward_default):
-    successes = np.zeros(num_episodes)
-    e = 0
-    while e < num_episodes:
-        state, _ = agent.env.reset()
-
-        for i in range(max_steps):
-            action = agent.choose_action(state)
-            next_state, reward, done, _, _ = agent.env.step(action)
-
-            reward = rewarding(state, next_state)
-            agent.update_qtable(state, action, reward, next_state)
-            state = next_state
-
-            if done:
-                if state == 63:
-                    successes[e] += 1
-                break
-
-        agent.update_epsilon()
-        if (e % 50 == 0):
-            print(f"{e} epizod")
-        e += 1
-    return successes
+def minus_for_walking_into_walls_and_holes(state, next_state, reward, done):
+    if done and reward == 0:
+        return -2
+    elif done and reward == 1:
+        return 10
+    elif next_state == state:
+        return -2
+    return 0
 
 
-def count_averaged_reward(max_steps=200, num_episodes=1000,  num_of_ind_runs=25, rewarding=reward_default):
+
+def count_averaged_reward(max_steps=200, num_episodes=10000,  num_of_ind_runs=25, rewarding=reward_default):
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
-        agent = FrozenAgent()
-        averaged_reward += Qlearing(agent, max_steps, num_episodes, rewarding)
+        agent = FrozenAgent(learning_rate=0.3,epsilon=1.0)
+        agent.Qlearning(rewarding, averaged_reward, num_episodes, max_steps)
     return averaged_reward / num_of_ind_runs
 
 
 def main():
+    rewarding=minus_for_walking_into_walls_and_holes
     averaged_reward_base = count_averaged_reward()
-    averaged_reward = count_averaged_reward()
+    averaged_reward = count_averaged_reward(rewarding=rewarding)
 
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -118,8 +99,13 @@ def main():
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
-    plt.plot(averaged_reward_base, 'r')
-    plt.plot(averaged_reward, 'b')
+    averaged_reward_base = np.convolve(
+        averaged_reward_base, np.ones(50) / 50, 'valid'
+    )
+    plt.xlim(0, 10000)
+    plt.plot(averaged_reward_base, 'r',  label='averaged_reward_base')
+    plt.plot(averaged_reward, 'b', label=rewarding.__name__)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), fontsize=8)
     plt.show()
 
 if __name__ == "__main__":
