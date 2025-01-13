@@ -2,6 +2,7 @@ import gymnasium as gym
 from matplotlib import pyplot as plt
 import numpy as np
 import random
+from typing import Callable
 
 
 class FrozenAgent:
@@ -9,7 +10,7 @@ class FrozenAgent:
                 learning_rate :float = 0.3,
                 discount_factor :float = 0.9,
                 epsilon :float = 1.0):
-        self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=True)
+        self.env =  gym.make("FrozenLake-v1", desc=None, map_name="8x8", is_slippery=False)
         self.state_size = self.env.observation_space.n
         self.action_size = self.env.action_space.n
         self.learning_rate = learning_rate
@@ -30,10 +31,12 @@ class FrozenAgent:
         delta = reward + self.discount_factor * best_next_action - self.qtable[state, action]
         self.qtable[state, action] += self.learning_rate * delta
 
-    def update_epsilon(self, episode) -> None:
+
+    def update_epsilon(self, episode :int) -> None:
         self.epsilon = max(0.001, self.epsilon - 0.001 * episode)
 
-    def Qlearning(self, reward_function, rewards :np.array, num_of_episodes :int,num_of_steps :int) -> None:
+
+    def Qlearning(self, reward_function: Callable[[int, int, float, bool], int], rewards: np.array, num_of_episodes: int, num_of_steps: int) -> np.array:
         for episode in range(num_of_episodes):
             current_state, _ = self.env.reset()
             for _ in range(num_of_steps):
@@ -50,16 +53,14 @@ class FrozenAgent:
             self.update_epsilon(episode)
             if reward > 0:
                 rewards[episode] += 1
-            if (episode % 50 == 0):
-                print(f"episode number: {episode}")
         return rewards
 
 
-def reward_default(state, next_state, reward, done):
+def reward_default(state, next_state, reward, done) -> int:
     return reward
 
 
-def reward_hole_minus(state, next_state, reward, done):
+def reward_hole_minus(state, next_state, reward, done) -> int:
     if done and reward == 0:
         return -1
     elif done and reward == 1:
@@ -67,7 +68,7 @@ def reward_hole_minus(state, next_state, reward, done):
     return 0
 
 
-def minus_for_walking_into_walls_and_holes(state, next_state, reward, done):
+def minus_for_walking_into_walls_and_holes(state, next_state, reward, done) -> int:
     if done and reward == 0:
         return -2
     elif done and reward == 1:
@@ -78,18 +79,20 @@ def minus_for_walking_into_walls_and_holes(state, next_state, reward, done):
 
 
 
-def count_averaged_reward(max_steps=200, num_episodes=10000,  num_of_ind_runs=25, rewarding=reward_default):
+def count_averaged_reward(learning_rate, discount_factor, num_episodes, num_of_ind_runs, max_steps=200, rewarding=reward_default):
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
-        agent = FrozenAgent(learning_rate=0.3,epsilon=1.0)
+        agent = FrozenAgent(learning_rate=learning_rate, discount_factor=discount_factor)
         agent.Qlearning(rewarding, averaged_reward, num_episodes, max_steps)
     return averaged_reward / num_of_ind_runs
 
 
 def main():
-    rewarding=minus_for_walking_into_walls_and_holes
-    averaged_reward_base = count_averaged_reward()
-    averaged_reward = count_averaged_reward(rewarding=rewarding)
+    num_of_episodes = 1000
+    rewarding=reward_hole_minus
+    averaged_reward_base = count_averaged_reward(num_episodes=num_of_episodes)
+    averaged_reward = count_averaged_reward(num_episodes=num_of_episodes, rewarding=rewarding)
+
 
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -99,12 +102,11 @@ def main():
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
-    averaged_reward_base = np.convolve(
-        averaged_reward_base, np.ones(50) / 50, 'valid'
-    )
-    plt.xlim(0, 10000)
-    plt.plot(averaged_reward_base, 'r',  label='averaged_reward_base')
-    plt.plot(averaged_reward, 'b', label=rewarding.__name__)
+    averaged_reward_base = np.convolve(averaged_reward_base, np.ones(20) / 20, 'valid')
+    averaged_reward = np.convolve(averaged_reward, np.ones(20) / 20, 'valid')
+    plt.xlim(0, num_of_episodes)
+    plt.plot(averaged_reward_base, 'r',  label='Default rewarding')
+    plt.plot(averaged_reward, 'b', label='Minus for walking into holes')
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), fontsize=8)
     plt.show()
 
