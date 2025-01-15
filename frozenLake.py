@@ -87,10 +87,10 @@ def minus_for_walking_into_walls_and_holes(state, next_state, reward, done) -> i
 
 
 def count_averaged_reward(
-    learning_rate: float,
-    discount_factor: float,
     num_episodes: int,
-    num_of_ind_runs: int,
+    num_of_ind_runs: int = 25,
+    learning_rate: float = 0.3,
+    discount_factor: float = 0.9,
     max_steps: int = 200,
     rewarding: Callable[[int, int, float, bool], int] = reward_default
 ) -> np.ndarray:
