@@ -36,7 +36,14 @@ class FrozenAgent:
         self.epsilon = max(0.001, self.epsilon - 0.001 * episode)
 
 
-    def Qlearning(self, reward_function: Callable[[int, int, float, bool], int], rewards: np.array, num_of_episodes: int, num_of_steps: int) -> np.array:
+    def Qlearning(
+            self,
+            reward_function: Callable[[int, int, float, bool], int],
+            rewards: np.array,
+            num_of_episodes: int,
+            num_of_steps: int
+    ) -> np.ndarray:
+
         for episode in range(num_of_episodes):
             current_state, _ = self.env.reset()
             for _ in range(num_of_steps):
@@ -79,7 +86,14 @@ def minus_for_walking_into_walls_and_holes(state, next_state, reward, done) -> i
 
 
 
-def count_averaged_reward(learning_rate, discount_factor, num_episodes, num_of_ind_runs, max_steps=200, rewarding=reward_default):
+def count_averaged_reward(
+    learning_rate: float,
+    discount_factor: float,
+    num_episodes: int,
+    num_of_ind_runs: int,
+    max_steps: int = 200,
+    rewarding: Callable[[int, int, float, bool], int] = reward_default
+) -> np.ndarray:
     averaged_reward = np.zeros(num_episodes)
     for i in range(num_of_ind_runs):
         agent = FrozenAgent(learning_rate=learning_rate, discount_factor=discount_factor)
